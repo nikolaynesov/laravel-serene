@@ -569,17 +569,9 @@ composer phpstan
 - PHP 8.1 or higher
 - Laravel 10.x or 11.x
 
-## Changelog
-
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Security
-
-If you discover any security-related issues, please email security@example.com instead of using the issue tracker.
 
 ## Credits
 
