@@ -1,0 +1,5 @@
+<?php
+
+use Nikolaynesov\LaravelSerene\Tests\TestCase;
+
+uses(TestCase::class)->in(__DIR__);

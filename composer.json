@@ -1,0 +1,50 @@
+{
+  "name": "nikolaynesov/laravel-serene",
+  "description": "Graceful, noise-free, and rate-limited exception reporting for Laravel",
+  "keywords": ["laravel", "errors", "exceptions", "reporting", "bugsnag", "rate-limiter", "serene", "error-tracking", "throttling"],
+  "type": "library",
+  "license": "MIT",
+  "version": "0.0.1",
+  "autoload": {
+    "psr-4": {
+      "Nikolaynesov\\LaravelSerene\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Nikolaynesov\\LaravelSerene\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Nikolaynesov\\LaravelSerene\\LaravelSereneProvider"
+      ],
+      "aliases": {
+        "Serene": "Nikolaynesov\\LaravelSerene\\Facades\\Serene"
+      }
+    }
+  },
+  "require": {
+    "php": ">=8.1",
+    "illuminate/support": "^10.0|^11.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^8.0",
+    "pestphp/pest": "^2.0",
+    "pestphp/pest-plugin-laravel": "^2.0",
+    "bugsnag/bugsnag-laravel": "^2.29",
+    "larastan/larastan": "^2.0"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "scripts": {
+    "test": "pest",
+    "phpstan": "phpstan analyse"
+  },
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  }
+}
