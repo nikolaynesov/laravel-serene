@@ -10,7 +10,7 @@ return [
      * Cooldown period in minutes (default: 30 minutes).
      * Environment: SERENE_REPORTER_COOLDOWN
      */
-    'cooldown' => env('SERENE_REPORTER_COOLDOWN', 30),
+    'cooldown' => (int) env('SERENE_REPORTER_COOLDOWN', 30),
 
     /*
      * Enable debug logging for monitoring throttling behavior.
@@ -18,7 +18,7 @@ return [
      * Environment: SERENE_REPORTER_DEBUG
      * Default: false
      */
-    'debug' => env('SERENE_REPORTER_DEBUG', false),
+    'debug' => (bool) env('SERENE_REPORTER_DEBUG', false),
 
     /*
      * Maximum number of user IDs to track per error.
@@ -28,5 +28,5 @@ return [
      * Environment: SERENE_REPORTER_MAX_TRACKED_USERS
      * Default: 1000
      */
-    'max_tracked_users' => env('SERENE_REPORTER_MAX_TRACKED_USERS', 1000),
+    'max_tracked_users' => (int) env('SERENE_REPORTER_MAX_TRACKED_USERS', 1000),
 ];
