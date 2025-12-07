@@ -4,7 +4,7 @@
   "keywords": ["laravel", "errors", "exceptions", "reporting", "bugsnag", "rate-limiter", "serene", "error-tracking", "throttling"],
   "type": "library",
   "license": "MIT",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "autoload": {
     "psr-4": {
       "Nikolaynesov\\LaravelSerene\\": "src/"

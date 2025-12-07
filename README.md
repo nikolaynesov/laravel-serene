@@ -36,54 +36,6 @@ php artisan vendor:publish --tag=serene-config
 
 This will create a `config/serene.php` file.
 
-## Configuration
-
-```php
-<?php
-
-return [
-    /*
-     * The reporter provider class implementing ErrorReporter.
-     * Built-in options:
-     * - \Nikolaynesov\LaravelSerene\Providers\BugsnagReporter::class
-     * - \Nikolaynesov\LaravelSerene\Providers\LogReporter::class
-     */
-    'provider' => \Nikolaynesov\LaravelSerene\Providers\BugsnagReporter::class,
-
-    /*
-     * Cooldown period in minutes (default: 30 minutes).
-     * Same errors won't be reported more than once during this period.
-     * Environment: SERENE_REPORTER_COOLDOWN
-     */
-    'cooldown' => env('SERENE_REPORTER_COOLDOWN', 30),
-
-    /*
-     * Enable debug logging for monitoring throttling behavior.
-     * When enabled, logs will be written for both reported and throttled errors.
-     * Environment: SERENE_REPORTER_DEBUG
-     * Default: false
-     */
-    'debug' => env('SERENE_REPORTER_DEBUG', false),
-
-    /*
-     * Maximum number of user IDs to track per error.
-     * Prevents cache memory issues during widespread errors.
-     * Environment: SERENE_REPORTER_MAX_TRACKED_USERS
-     * Default: 1000
-     */
-    'max_tracked_users' => env('SERENE_REPORTER_MAX_TRACKED_USERS', 1000),
-
-    /*
-     * Maximum number of unique errors to track simultaneously.
-     * Prevents catastrophic cache memory usage if millions of unique errors occur.
-     * When limit is reached, new errors are reported immediately without throttling.
-     * Environment: SERENE_REPORTER_MAX_TRACKED_ERRORS
-     * Default: 1000
-     */
-    'max_tracked_errors' => env('SERENE_REPORTER_MAX_TRACKED_ERRORS', 1000),
-];
-```
-
 ### Environment Variables
 
 Add these to your `.env` file to configure Serene:
@@ -318,34 +270,6 @@ throw new RuntimeException('Database connection failed');
 
 **Hierarchy:** Explicit key > GroupableException > Auto-generated
 
-### Dependency Injection
-
-You can also use dependency injection instead of the facade:
-
-```php
-use Nikolaynesov\LaravelSerene\Services\RateLimitedErrorReporter;
-
-class PaymentController extends Controller
-{
-    public function __construct(
-        protected RateLimitedErrorReporter $errorReporter
-    ) {}
-
-    public function process(Request $request)
-    {
-        try {
-            // Process payment
-        } catch (\Exception $e) {
-            $this->errorReporter->report($e, [
-                'user_id' => auth()->id(),
-            ]);
-
-            return back()->withErrors('Payment failed');
-        }
-    }
-}
-```
-
 ## How It Works
 
 ### Rate Limiting Logic
@@ -446,108 +370,7 @@ Then configure it in `config/serene.php`:
 
 ### Advanced Bugsnag Customization
 
-For advanced Bugsnag integration beyond the built-in fields, extend the `BugsnagReporter`:
-
-```php
-<?php
-
-namespace App\ErrorReporters;
-
-use Nikolaynesov\LaravelSerene\Providers\BugsnagReporter;
-use Throwable;
-
-class EnhancedBugsnagReporter extends BugsnagReporter
-{
-    public function report(Throwable $exception, array $context = []): void
-    {
-        // Automatically enrich context with app-specific data
-        $context['app_version'] = config('app.version');
-        $context['environment'] = app()->environment();
-
-        // Add authenticated user details
-        if ($user = auth()->user()) {
-            $context['user_id'] = $user->id;
-            $context['user_email'] = $user->email;
-            $context['user_name'] = $user->name;
-            $context['user_role'] = $user->role;
-            $context['subscription_tier'] = $user->subscription?->tier;
-        }
-
-        // Determine severity based on exception type
-        $context['severity'] = $this->determineSeverity($exception);
-
-        // Call parent to handle standard reporting + custom enrichment
-        parent::report($exception, $context);
-    }
-
-    protected function determineSeverity(Throwable $exception): string
-    {
-        return match (true) {
-            $exception instanceof \Symfony\Component\HttpKernel\Exception\HttpException => 'warning',
-            $exception instanceof \InvalidArgumentException => 'info',
-            default => 'error',
-        };
-    }
-}
-```
-
-**Advanced customization with direct Bugsnag API access:**
-
-```php
-<?php
-
-namespace App\ErrorReporters;
-
-use Bugsnag\BugsnagLaravel\Facades\Bugsnag;
-use Nikolaynesov\LaravelSerene\Providers\BugsnagReporter;
-use Throwable;
-
-class CustomBugsnagReporter extends BugsnagReporter
-{
-    public function report(Throwable $exception, array $context = []): void
-    {
-        Bugsnag::notifyException($exception, function ($report) use ($context) {
-            // Standard user identification (inherited behavior)
-            if (!empty($context['affected_users'])) {
-                $report->setUser([
-                    'id' => (string) $context['affected_users'][0],
-                    'email' => $context['user_email'] ?? null,
-                    'name' => $context['user_name'] ?? null,
-                ]);
-            }
-
-            // Add custom metadata tabs
-            $report->addMetaData('request', [
-                'url' => request()->fullUrl(),
-                'method' => request()->method(),
-                'ip' => request()->ip(),
-            ]);
-
-            $report->addMetaData('session', [
-                'id' => session()->getId(),
-                'started_at' => session()->get('started_at'),
-            ]);
-
-            // Custom grouping
-            $report->setGroupingHash(
-                $exception->getFile() . ':' . $exception->getLine()
-            );
-
-            // Add breadcrumbs
-            $report->leaveBreadcrumb('User Action', 'process', [
-                'action' => $context['action'] ?? 'unknown',
-            ]);
-
-            // Set context for better organization
-            $report->setContext($context['context'] ?? 'General');
-
-            // Standard metadata
-            $report->setMetaData(['error_throttler' => $context]);
-        });
-    }
-}
-```
-
+For advanced Bugsnag integration beyond the built-in fields, extend the `BugsnagReporter`.
 Configure your custom reporter:
 
 ```php
@@ -592,21 +415,7 @@ SERENE_REPORTER_DEBUG=false
 SERENE_REPORTER_MAX_TRACKED_USERS=1000
 ```
 
-Or dynamically in config:
-
-```php
-// config/serene.php
-
-return [
-    'provider' => env('APP_ENV') === 'local'
-        ? \Nikolaynesov\LaravelSerene\Providers\LogReporter::class
-        : \Nikolaynesov\LaravelSerene\Providers\BugsnagReporter::class,
-
-    'cooldown' => env('SERENE_REPORTER_COOLDOWN', 30),
-    'debug' => env('SERENE_REPORTER_DEBUG', false),
-    'max_tracked_users' => env('SERENE_REPORTER_MAX_TRACKED_USERS', 1000),
-];
-```
+Or dynamically in config `config/serene.php`
 
 ### Cache Memory Management
 
