@@ -9,7 +9,9 @@ Graceful, noise-free, and rate-limited exception reporting for Laravel. Stop spa
 
 - **Rate Limiting**: Automatically throttles duplicate errors to prevent spam
 - **Affected User Tracking**: Tracks all users affected by an error during the cooldown period
+- **Intelligent Error Grouping**: Interface-based grouping for exceptions with dynamic messages
 - **Metrics & Stats**: Provides occurrence and throttle statistics for each error
+- **Memory Protection**: Configurable caps prevent cache overflow in catastrophic scenarios
 - **Provider Agnostic**: Works with Bugsnag, Sentry, or any custom error reporter
 - **Cache Driver Compatible**: Works with any Laravel cache driver (Redis, Memcached, File, etc.)
 - **Easy Integration**: Simple facade interface and automatic Laravel discovery
@@ -70,6 +72,15 @@ return [
      * Default: 1000
      */
     'max_tracked_users' => env('SERENE_REPORTER_MAX_TRACKED_USERS', 1000),
+
+    /*
+     * Maximum number of unique errors to track simultaneously.
+     * Prevents catastrophic cache memory usage if millions of unique errors occur.
+     * When limit is reached, new errors are reported immediately without throttling.
+     * Environment: SERENE_REPORTER_MAX_TRACKED_ERRORS
+     * Default: 1000
+     */
+    'max_tracked_errors' => env('SERENE_REPORTER_MAX_TRACKED_ERRORS', 1000),
 ];
 ```
 
@@ -86,6 +97,9 @@ SERENE_REPORTER_DEBUG=false
 
 # Maximum users to track per error (default: 1000)
 SERENE_REPORTER_MAX_TRACKED_USERS=1000
+
+# Maximum unique errors to track simultaneously (default: 1000)
+SERENE_REPORTER_MAX_TRACKED_ERRORS=1000
 ```
 
 All environment variables are optional. If not set, the defaults shown above will be used.
@@ -223,19 +237,86 @@ Serene::report($exception, [
 ]);
 ```
 
-### Custom Error Keys
+### Error Grouping
 
-By default, errors are grouped by exception class and message. You can provide a custom key for more granular control:
+Serene provides three ways to control how errors are grouped for throttling, from most flexible to automatic:
+
+#### 1. Groupable Exceptions (Recommended)
+
+Implement the `GroupableException` interface on your custom exceptions to define automatic error grouping:
+
+```php
+use Nikolaynesov\LaravelSerene\Contracts\GroupableException;
+
+class PaymentException extends \Exception implements GroupableException
+{
+    public function getErrorGroup(): string
+    {
+        return 'payment-processing-error';
+    }
+}
+
+// All PaymentExceptions are automatically grouped together
+throw new PaymentException("Payment failed for user {$userId}");
+throw new PaymentException("Payment declined for order {$orderId}");
+// Both grouped as 'payment-processing-error' regardless of message
+```
+
+**Benefits:**
+- Solves the dynamic message problem automatically
+- No need to specify keys at call sites
+- Self-documenting exceptions
+- Works across your entire codebase
+
+**Example with dynamic grouping:**
+
+```php
+class ApiException extends \Exception implements GroupableException
+{
+    public function __construct(
+        string $message,
+        private string $endpoint
+    ) {
+        parent::__construct($message);
+    }
+
+    public function getErrorGroup(): string
+    {
+        return "api:{$this->endpoint}";
+    }
+}
+
+// Automatically groups by endpoint
+throw new ApiException('Timeout', 'stripe/charges');
+throw new ApiException('Invalid request', 'stripe/charges');
+// Both grouped as 'api:stripe/charges'
+```
+
+#### 2. Explicit Custom Keys
+
+Override grouping with an explicit key parameter for one-off cases:
 
 ```php
 // Group by API endpoint
-$key = "api:payment:stripe";
-Serene::report($exception, ['user_id' => $user->id], $key);
+Serene::report($exception, ['user_id' => $user->id], 'api:payment:stripe');
 
 // Group by specific operation
-$key = "order:{$order->id}:processing";
-Serene::report($exception, ['order_id' => $order->id], $key);
+Serene::report($exception, ['order_id' => $order->id], 'order-processing');
 ```
+
+**When to use:** Third-party exceptions you can't modify, or temporary overrides.
+
+#### 3. Auto-Generated Keys
+
+If no interface or explicit key is provided, errors are grouped by exception class + message hash:
+
+```php
+// Auto-grouped by class and message
+throw new RuntimeException('Database connection failed');
+// Key: auto:runtimeexception:abc123
+```
+
+**Hierarchy:** Explicit key > GroupableException > Auto-generated
 
 ### Dependency Injection
 
@@ -529,26 +610,52 @@ return [
 
 ### Cache Memory Management
 
-Serene caps user tracking at `max_tracked_users` (default: 1000) per error to prevent cache memory issues during widespread errors.
+Serene provides two-level protection against cache memory issues:
 
-**Memory calculation:**
+#### 1. Per-Error User Tracking Cap (`max_tracked_users`)
+
+Limits the number of users tracked **per individual error** (default: 1000).
+
+**Memory calculation per error:**
 - 1000 users × 8 bytes = ~8KB per error
-- 100 concurrent unique errors = ~800KB total
-- Safe for most cache systems (Redis, Memcached, etc.)
 
-**For high-traffic applications:**
+When `user_tracking_capped` is `true` in the error context, it indicates a widespread issue affecting many users.
+
+**Adjust for high-traffic applications:**
 ```bash
 # .env
 SERENE_REPORTER_MAX_TRACKED_USERS=100
 ```
 
-**For low-traffic applications:**
+#### 2. Global Error Tracking Cap (`max_tracked_errors`)
+
+Limits the **total number of unique errors** tracked simultaneously (default: 1000).
+
+**Total memory calculation:**
+- 1000 unique errors × 8KB = **~8MB total** (worst case with max users per error)
+- Safe for any Redis instance with 512MB+ RAM
+
+**How it works:**
+- Tracks up to 1000 unique errors with full throttling enabled
+- When limit is reached, **new errors are reported immediately without throttling** (fail-open)
+- Expired errors are automatically cleaned up as their cooldown periods end
+- This prevents catastrophic memory usage if millions of unique errors occur
+
+**For catastrophic scenario protection:**
 ```bash
 # .env
-SERENE_REPORTER_MAX_TRACKED_USERS=5000
+# Guaranteed max memory: 1000 errors × 8KB = 8MB
+SERENE_REPORTER_MAX_TRACKED_ERRORS=1000
+
+# More aggressive cap for memory-constrained environments
+SERENE_REPORTER_MAX_TRACKED_ERRORS=100  # Max 800KB
 ```
 
-When `user_tracking_capped` is `true` in the error context, it indicates a widespread issue affecting many users.
+**When tracking limit is reached:**
+- Errors include `tracking_limit_reached: true` in context
+- Errors are still reported to Bugsnag (no silent failures)
+- Throttling is bypassed to prevent cache overflow
+- Once old errors expire, throttling resumes automatically
 
 ## Testing
 

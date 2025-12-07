@@ -29,4 +29,13 @@ return [
      * Default: 1000
      */
     'max_tracked_users' => (int) env('SERENE_REPORTER_MAX_TRACKED_USERS', 1000),
+
+    /*
+     * Maximum number of unique errors to track simultaneously.
+     * Prevents catastrophic cache memory usage if millions of unique errors occur.
+     * When limit is reached, new errors are reported immediately without throttling.
+     * Environment: SERENE_REPORTER_MAX_TRACKED_ERRORS
+     * Default: 1000
+     */
+    'max_tracked_errors' => (int) env('SERENE_REPORTER_MAX_TRACKED_ERRORS', 1000),
 ];

@@ -30,6 +30,7 @@ class LaravelSereneProvider extends ServiceProvider
             $cooldown = config('serene.cooldown');
             $debug = config('serene.debug');
             $maxTrackedUsers = config('serene.max_tracked_users');
+            $maxTrackedErrors = config('serene.max_tracked_errors');
 
             if (!is_int($cooldown) || $cooldown < 1) {
                 throw new \InvalidArgumentException("Cooldown must be a positive integer, got: {$cooldown}");
@@ -43,11 +44,16 @@ class LaravelSereneProvider extends ServiceProvider
                 throw new \InvalidArgumentException("Max tracked users must be a positive integer, got: " . gettype($maxTrackedUsers));
             }
 
+            if (!is_int($maxTrackedErrors) || $maxTrackedErrors < 1) {
+                throw new \InvalidArgumentException("Max tracked errors must be a positive integer, got: " . gettype($maxTrackedErrors));
+            }
+
             return new RateLimitedErrorReporter(
                 $app->make(ErrorReporter::class),
                 $cooldown,
                 $debug,
-                $maxTrackedUsers
+                $maxTrackedUsers,
+                $maxTrackedErrors
             );
         });
     }
