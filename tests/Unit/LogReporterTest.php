@@ -25,13 +25,11 @@ test('includes exception in context', function () {
 
     Log::shouldReceive('error')
         ->once()
-        ->with(
-            'Test',
-            \Mockery::subset([
-                'exception' => \Mockery::type(RuntimeException::class),
-                'context' => [],
-            ])
-        );
+        ->withArgs(function ($message, $data) {
+            return $message === 'Test'
+                && ($data['exception'] ?? null) instanceof RuntimeException
+                && ($data['context'] ?? null) === [];
+        });
 
     $reporter = new LogReporter();
     $reporter->report($exception);
@@ -46,16 +44,14 @@ test('includes custom context', function () {
 
     Log::shouldReceive('error')
         ->once()
-        ->with(
-            'Test',
-            \Mockery::subset([
-                'exception' => \Mockery::type(RuntimeException::class),
-                'context' => [
+        ->withArgs(function ($message, $data) {
+            return $message === 'Test'
+                && ($data['exception'] ?? null) instanceof RuntimeException
+                && ($data['context'] ?? null) === [
                     'user_id' => 123,
                     'custom' => 'value',
-                ],
-            ])
-        );
+                ];
+        });
 
     $reporter = new LogReporter();
     $reporter->report($exception, $context);
@@ -85,13 +81,11 @@ test('handles empty context', function () {
 
     Log::shouldReceive('error')
         ->once()
-        ->with(
-            'Test',
-            \Mockery::subset([
-                'exception' => \Mockery::type(RuntimeException::class),
-                'context' => [],
-            ])
-        );
+        ->withArgs(function ($message, $data) {
+            return $message === 'Test'
+                && ($data['exception'] ?? null) instanceof RuntimeException
+                && ($data['context'] ?? null) === [];
+        });
 
     $reporter = new LogReporter();
     $reporter->report($exception);
@@ -103,21 +97,17 @@ test('handles different exception types', function () {
 
     Log::shouldReceive('error')
         ->once()
-        ->with(
-            'Runtime error',
-            \Mockery::subset([
-                'exception' => \Mockery::type(RuntimeException::class),
-            ])
-        );
+        ->withArgs(function ($message, $data) {
+            return $message === 'Runtime error'
+                && ($data['exception'] ?? null) instanceof RuntimeException;
+        });
 
     Log::shouldReceive('error')
         ->once()
-        ->with(
-            'Invalid argument',
-            \Mockery::subset([
-                'exception' => \Mockery::type(InvalidArgumentException::class),
-            ])
-        );
+        ->withArgs(function ($message, $data) {
+            return $message === 'Invalid argument'
+                && ($data['exception'] ?? null) instanceof InvalidArgumentException;
+        });
 
     $reporter = new LogReporter();
 
@@ -135,17 +125,15 @@ test('context array structure is correct', function () {
 
     Log::shouldReceive('error')
         ->once()
-        ->with(
-            'Test',
-            [
-                'exception' => \Mockery::type(RuntimeException::class),
-                'context' => [
+        ->withArgs(function ($message, $data) {
+            return $message === 'Test'
+                && ($data['exception'] ?? null) instanceof RuntimeException
+                && ($data['context'] ?? null) === [
                     'user_id' => 123,
                     'order_id' => 456,
                     'meta' => ['key' => 'value'],
-                ],
-            ]
-        );
+                ];
+        });
 
     $reporter = new LogReporter();
     $reporter->report($exception, $context);

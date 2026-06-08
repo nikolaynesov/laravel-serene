@@ -43,7 +43,9 @@ class RateLimitedErrorReporter
             return;
         }
 
-        // Report error with full context
+        // Report error with full context. This is a breakthrough report, so it
+        // does not persist stats: reportErrorWithContext() resets the window via
+        // cleanupAfterReport() once the accumulated totals have been reported.
         $this->reportErrorWithContext($exception, $context, $key, $stats, $cacheKeys);
     }
 
@@ -140,7 +142,7 @@ class RateLimitedErrorReporter
 
         if ($this->shouldTrackUser($userId, $affectedUsers)) {
             $affectedUsers[] = $userId;
-            Cache::put($usersKey, $affectedUsers, now()->addMinutes($this->cooldownMinutes));
+            Cache::put($usersKey, $affectedUsers, now()->addMinutes($this->cooldownMinutes + 10));
         }
     }
 
@@ -178,7 +180,7 @@ class RateLimitedErrorReporter
     protected function handleThrottledError(string $key, array $stats, string $statsKey): void
     {
         $stats['throttled']++;
-        Cache::put($statsKey, $stats, now()->addMinutes($this->cooldownMinutes));
+        $this->persistStats($statsKey, $stats);
 
         if ($this->debug) {
             Log::debug("[Serene] {$key} throttled", [
@@ -207,6 +209,15 @@ class RateLimitedErrorReporter
         $this->logReportedError($key, $stats, $affectedUsers);
         $this->activateThrottling($key, $cacheKeys);
         $this->cleanupAfterReport($cacheKeys);
+    }
+
+    /**
+     * Persist occurrence statistics, retaining them past the cooldown so
+     * counts continue to accumulate into the next reporting cycle.
+     */
+    protected function persistStats(string $statsKey, array $stats): void
+    {
+        Cache::put($statsKey, $stats, now()->addMinutes($this->cooldownMinutes + 10));
     }
 
     /**

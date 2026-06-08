@@ -35,5 +35,11 @@ abstract class TestCase extends Orchestra
         config()->set('serene.cooldown', 60);
         config()->set('serene.provider', \Nikolaynesov\LaravelSerene\Providers\LogReporter::class);
         config()->set('serene.debug', false);
+
+        // Bind a real (but inert) Bugsnag client so the `Bugsnag` facade can be
+        // mocked in tests without pulling in the full Bugsnag service provider.
+        $app->singleton('bugsnag', fn () => new \Bugsnag\Client(
+            new \Bugsnag\Configuration('0123456789abcdef0123456789abcdef')
+        ));
     }
 }
