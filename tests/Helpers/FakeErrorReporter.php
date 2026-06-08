@@ -3,6 +3,7 @@
 namespace Nikolaynesov\LaravelSerene\Tests\Helpers;
 
 use Nikolaynesov\LaravelSerene\Contracts\ErrorReporter;
+use PHPUnit\Framework\Assert;
 use Throwable;
 
 class FakeErrorReporter implements ErrorReporter
@@ -24,11 +25,7 @@ class FakeErrorReporter implements ErrorReporter
             fn ($report) => $report['exception'] instanceof $exceptionClass
         );
 
-        if (!$found) {
-            throw new \PHPUnit\Framework\AssertionFailedError(
-                "Failed asserting that {$exceptionClass} was reported."
-            );
-        }
+        Assert::assertTrue($found, "Failed asserting that {$exceptionClass} was reported.");
     }
 
     public function assertNotReported(string $exceptionClass): void
@@ -37,22 +34,12 @@ class FakeErrorReporter implements ErrorReporter
             fn ($report) => $report['exception'] instanceof $exceptionClass
         );
 
-        if ($found) {
-            throw new \PHPUnit\Framework\AssertionFailedError(
-                "Failed asserting that {$exceptionClass} was not reported."
-            );
-        }
+        Assert::assertFalse($found, "Failed asserting that {$exceptionClass} was not reported.");
     }
 
     public function assertReportCount(int $count): void
     {
-        $actual = count($this->reports);
-
-        if ($actual !== $count) {
-            throw new \PHPUnit\Framework\AssertionFailedError(
-                "Failed asserting that report count is {$count}. Actual: {$actual}"
-            );
-        }
+        Assert::assertCount($count, $this->reports, "Failed asserting that report count is {$count}.");
     }
 
     public function assertContextContains(string $key, mixed $value): void
@@ -61,11 +48,7 @@ class FakeErrorReporter implements ErrorReporter
             return isset($report['context'][$key]) && $report['context'][$key] === $value;
         });
 
-        if (!$found) {
-            throw new \PHPUnit\Framework\AssertionFailedError(
-                "Failed asserting that context contains [{$key} => {$value}]."
-            );
-        }
+        Assert::assertTrue($found, "Failed asserting that context contains [{$key} => {$value}].");
     }
 
     public function getLastReport(): ?array

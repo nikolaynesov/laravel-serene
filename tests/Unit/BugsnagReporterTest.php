@@ -150,6 +150,16 @@ test('preserves all context fields in metadata', function () {
         ->withArgs(function ($ex, $callback) use ($context) {
             $report = new class {
                 public array $metadata = [];
+                public ?array $user = null;
+
+                public function setUser(array $data): void
+                {
+                    $this->user = $data;
+                }
+
+                public function setSeverity(string $severity): void {}
+
+                public function addMetaData(string $tab, array $data): void {}
 
                 public function setMetaData(array $data): void
                 {
