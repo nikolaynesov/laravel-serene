@@ -15,10 +15,14 @@ test('facade report method works', function () {
         ->once()
         ->with(
             'Test error',
-            \Mockery::subset([
-                'exception' => $exception,
-                'context' => \Mockery::type('array'),
-            ])
+            \Mockery::on(function ($arg) use ($exception) {
+                return $arg['exception'] === $exception
+                    && is_array($arg['context'])
+                    && isset($arg['context']['occurrences'])
+                    && isset($arg['context']['throttled'])
+                    && isset($arg['context']['affected_users'])
+                    && isset($arg['context']['key']);
+            })
         );
 
     Serene::report($exception);
@@ -39,13 +43,15 @@ test('can use facade with context', function () {
         ->once()
         ->with(
             'Test',
-            \Mockery::subset([
-                'exception' => $exception,
-                'context' => \Mockery::subset([
-                    'user_id' => 123,
-                    'custom' => 'data',
-                ]),
-            ])
+            \Mockery::on(function ($arg) use ($exception) {
+                return $arg['exception'] === $exception
+                    && is_array($arg['context'])
+                    && $arg['context']['user_id'] === 123
+                    && $arg['context']['custom'] === 'data'
+                    && isset($arg['context']['occurrences'])
+                    && isset($arg['context']['affected_users'])
+                    && in_array(123, $arg['context']['affected_users']);
+            })
         );
 
     Serene::report($exception, $context);
@@ -59,12 +65,13 @@ test('can use facade with custom key', function () {
         ->once()
         ->with(
             'Test',
-            \Mockery::subset([
-                'exception' => $exception,
-                'context' => \Mockery::subset([
-                    'key' => $customKey,
-                ]),
-            ])
+            \Mockery::on(function ($arg) use ($exception, $customKey) {
+                return $arg['exception'] === $exception
+                    && is_array($arg['context'])
+                    && $arg['context']['key'] === $customKey
+                    && isset($arg['context']['occurrences'])
+                    && isset($arg['context']['throttled']);
+            })
         );
 
     Serene::report($exception, [], $customKey);
@@ -82,18 +89,17 @@ test('facade passes all parameters correctly', function () {
         ->once()
         ->with(
             'Complete test',
-            \Mockery::subset([
-                'exception' => $exception,
-                'context' => \Mockery::subset([
-                    'user_id' => 456,
-                    'order_id' => 789,
-                    'key' => $key,
-                    'affected_users' => [456],
-                    'affected_user_count' => 1,
-                    'occurrences' => 1,
-                    'throttled' => 0,
-                ]),
-            ])
+            \Mockery::on(function ($arg) use ($exception, $key) {
+                return $arg['exception'] === $exception
+                    && is_array($arg['context'])
+                    && $arg['context']['user_id'] === 456
+                    && $arg['context']['order_id'] === 789
+                    && $arg['context']['key'] === $key
+                    && $arg['context']['affected_users'] === [456]
+                    && $arg['context']['affected_user_count'] === 1
+                    && $arg['context']['occurrences'] === 1
+                    && $arg['context']['throttled'] === 0;
+            })
         );
 
     Serene::report($exception, $context, $key);

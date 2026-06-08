@@ -466,6 +466,60 @@ SERENE_REPORTER_MAX_TRACKED_ERRORS=100  # Max 800KB
 - Throttling is bypassed to prevent cache overflow
 - Once old errors expire, throttling resumes automatically
 
+## Flushing Throttled Errors
+
+By default, throttled errors are only reported when they occur again after the cooldown expires. If errors stop occurring, the accumulated statistics remain in cache until they expire.
+
+To ensure no throttled data is lost, you can manually flush throttled errors:
+
+### Manual Flush
+
+```bash
+php artisan serene:flush-throttled
+```
+
+This command will:
+- Find all currently throttled errors
+- Report them with accumulated statistics (occurrences, throttled count, affected users)
+- Clear the throttle markers
+
+**Example output:**
+```
+Scanning for throttled errors...
+Flushed 3 throttled error(s):
+  - payment-processing-error: 45 occurrences (44 throttled)
+  - api:stripe/charges: 12 occurrences (11 throttled)
+  - custom-group: 8 occurrences (7 throttled)
+```
+
+### Dry Run Mode
+
+Preview what would be flushed without actually reporting:
+
+```bash
+php artisan serene:flush-throttled --dry-run
+```
+
+### Automatic Flushing
+
+Serene automatically schedules the flush command to catch orphaned throttled errors. This ensures that if errors stop occurring during a throttle period, their accumulated statistics are still reported.
+
+**How it works:**
+- Flush runs periodically at an interval calculated from your cooldown setting
+- Interval formula: `cooldown / 6` (provides 6 safety checks per throttle cycle)
+- Minimum interval: 1 minute (for very short cooldowns)
+- Examples:
+  - 30-minute cooldown → flush every 5 minutes
+  - 60-minute cooldown → flush every 10 minutes
+  - 5-minute cooldown → flush every 1 minute
+
+**No configuration needed** - this happens automatically when Laravel's scheduler runs.
+
+**Why this matters:**
+If an error occurs repeatedly but then stops (e.g., during a deployment issue that gets resolved), the throttled statistics would normally be lost. Automatic flushing ensures you still get a report with the full occurrence count and affected users.
+
+**Note:** Flushed errors include a `flushed_by_command: true` flag in their context to distinguish them from naturally reported errors.
+
 ## Testing
 
 Run the test suite:

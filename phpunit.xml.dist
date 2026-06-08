@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pest
+<phpunit
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="./vendor/pestphp/pest/pest.xsd"
+    xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
     colors="true"
-    testdox="true"
 >
     <testsuites>
         <testsuite name="Unit">
@@ -18,4 +17,4 @@
             <directory>src</directory>
         </include>
     </source>
-</pest>
+</phpunit>
