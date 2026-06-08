@@ -68,20 +68,21 @@ test('cooldown period expires correctly', function () {
 test('user tracking across multiple errors', function () {
     $exception = new RuntimeException('User error');
 
-    Serene::report($exception, ['user_id' => 1]); // Reported
+    Serene::report($exception);                   // Opens the window
+    Serene::report($exception, ['user_id' => 1]); // Throttled
     Serene::report($exception, ['user_id' => 2]); // Throttled
     Serene::report($exception, ['user_id' => 3]); // Throttled
     Serene::report($exception, ['user_id' => 2]); // Duplicate user, throttled
 
     Carbon::setTestNow('2025-12-05 11:01:00');
 
-    Serene::report($exception, ['user_id' => 4]); // Reported
+    Serene::report($exception, ['user_id' => 4]); // Breakthrough
 
     $lastReport = $this->fake->getLastReport();
 
-    // Previous users cleared, only new user tracked
-    expect($lastReport['context']['affected_users'])->toBe([4])
-        ->and($lastReport['context']['affected_user_count'])->toBe(1);
+    // Distinct users accumulated across the window, deduped.
+    expect($lastReport['context']['affected_users'])->toBe([1, 2, 3, 4])
+        ->and($lastReport['context']['affected_user_count'])->toBe(4);
 });
 
 test('metrics accumulate correctly over time', function () {
@@ -89,16 +90,17 @@ test('metrics accumulate correctly over time', function () {
 
     // First reporting cycle
     Serene::report($exception); // occurrence 1, reported
+    // cleanup after report
+    Serene::report($exception); // occurrence 1, throttled
     Serene::report($exception); // occurrence 2, throttled
-    Serene::report($exception); // occurrence 3, throttled
 
     Carbon::setTestNow('2025-12-05 11:01:00');
 
-    Serene::report($exception); // occurrence 4, reported
+    Serene::report($exception); // occurrence 3, reported
 
     $report = $this->fake->getLastReport();
 
-    expect($report['context']['occurrences'])->toBe(4)
+    expect($report['context']['occurrences'])->toBe(3)
         ->and($report['context']['throttled'])->toBe(2);
 });
 

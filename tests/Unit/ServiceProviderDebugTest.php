@@ -10,12 +10,11 @@ test('service provider passes debug flag from config', function () {
     expect($reporter)->toBeInstanceOf(RateLimitedErrorReporter::class);
 });
 
-test('service provider defaults debug to false', function () {
+test('service provider rejects null for debug', function () {
     config(['serene.debug' => null]);
 
-    $reporter = app(RateLimitedErrorReporter::class);
-
-    expect($reporter)->toBeInstanceOf(RateLimitedErrorReporter::class);
+    expect(fn () => app(RateLimitedErrorReporter::class))
+        ->toThrow(InvalidArgumentException::class, 'Debug must be a boolean');
 });
 
 test('service provider validates debug is boolean', function () {

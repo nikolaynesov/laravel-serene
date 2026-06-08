@@ -20,8 +20,8 @@ test('debug mode disabled does not log when error is reported', function () {
     $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 1000);
     $exception = new RuntimeException('Test');
 
-    Log::shouldNotReceive('info');
-    Log::shouldNotReceive('debug');
+    Log::shouldReceive('info')->never();
+    Log::shouldReceive('debug')->never();
 
     $reporter->report($exception);
 });
@@ -32,7 +32,7 @@ test('debug mode disabled does not log when error is throttled', function () {
 
     $reporter->report($exception); // Reported
 
-    Log::shouldNotReceive('debug');
+    Log::shouldReceive('debug')->never();
 
     $reporter->report($exception); // Throttled, should not log
 });
@@ -71,7 +71,7 @@ test('debug mode enabled logs when error is throttled', function () {
         ->with(
             "[Serene] {$key} throttled",
             \Mockery::subset([
-                'occurrences' => 2,
+                'occurrences' => 1,
                 'throttled' => 1,
             ])
         );
@@ -113,7 +113,7 @@ test('debug mode logs show throttle count accumulation', function () {
         ->with(
             "[Serene] {$key} throttled",
             [
-                'occurrences' => 2,
+                'occurrences' => 1,
                 'throttled' => 1,
             ]
         );
@@ -125,7 +125,7 @@ test('debug mode logs show throttle count accumulation', function () {
         ->with(
             "[Serene] {$key} throttled",
             [
-                'occurrences' => 3,
+                'occurrences' => 2,
                 'throttled' => 2,
             ]
         );
@@ -138,8 +138,8 @@ test('debug mode uses info level for reports', function () {
     $exception = new RuntimeException('Test');
 
     Log::shouldReceive('info')->once();
-    Log::shouldNotReceive('warning');
-    Log::shouldNotReceive('error');
+    Log::shouldReceive('warning')->never();
+    Log::shouldReceive('error')->never();
 
     $reporter->report($exception);
 });
@@ -153,8 +153,8 @@ test('debug mode uses debug level for throttles', function () {
     $reporter->report($exception);
 
     Log::shouldReceive('debug')->once();
-    Log::shouldNotReceive('warning');
-    Log::shouldNotReceive('error');
+    Log::shouldReceive('warning')->never();
+    Log::shouldReceive('error')->never();
 
     $reporter->report($exception); // Throttled
 });
@@ -180,7 +180,7 @@ test('debug mode can be toggled per instance', function () {
     $exception2 = new RuntimeException('Test 2');
 
     Log::shouldReceive('info')->once(); // Only debug reporter logs
-    Log::shouldNotReceive('debug');
+    Log::shouldReceive('debug')->never();
 
     $debugReporter->report($exception1); // Logs
     $normalReporter->report($exception2); // Does not log

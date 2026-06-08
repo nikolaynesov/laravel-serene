@@ -10,12 +10,11 @@ test('service provider passes max_tracked_users from config', function () {
     expect($reporter)->toBeInstanceOf(RateLimitedErrorReporter::class);
 });
 
-test('service provider defaults max_tracked_users to 1000', function () {
+test('service provider rejects null for max_tracked_users', function () {
     config(['serene.max_tracked_users' => null]);
 
-    $reporter = app(RateLimitedErrorReporter::class);
-
-    expect($reporter)->toBeInstanceOf(RateLimitedErrorReporter::class);
+    expect(fn () => app(RateLimitedErrorReporter::class))
+        ->toThrow(InvalidArgumentException::class, 'Max tracked users must be a positive integer');
 });
 
 test('service provider validates max_tracked_users is integer', function () {

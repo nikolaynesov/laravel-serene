@@ -56,13 +56,11 @@ test('accepts valid configuration', function () {
     expect($reporter)->toBeInstanceOf(RateLimitedErrorReporter::class);
 });
 
-test('uses default cooldown of 60 when not configured', function () {
+test('throws exception for null cooldown', function () {
     config(['serene.cooldown' => null]);
 
-    // Should use default from mergeConfigFrom
-    $reporter = app(RateLimitedErrorReporter::class);
-
-    expect($reporter)->toBeInstanceOf(RateLimitedErrorReporter::class);
+    expect(fn () => app(RateLimitedErrorReporter::class))
+        ->toThrow(InvalidArgumentException::class, 'Cooldown must be a positive integer');
 });
 
 test('resolves ErrorReporter from configured provider', function () {

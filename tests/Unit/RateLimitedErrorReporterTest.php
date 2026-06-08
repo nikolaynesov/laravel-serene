@@ -50,23 +50,26 @@ test('reports error again after cooldown expires', function () {
 test('tracks affected users correctly', function () {
     $exception = new RuntimeException('Test error');
 
-    $this->reporter->report($exception, ['user_id' => 1]); // Reported
+    // Open the window, then three users hit the error while it is throttled.
+    $this->reporter->report($exception);
+    $this->reporter->report($exception, ['user_id' => 1]); // Throttled
     $this->reporter->report($exception, ['user_id' => 2]); // Throttled
     $this->reporter->report($exception, ['user_id' => 3]); // Throttled
 
     Carbon::setTestNow('2025-12-05 11:01:00');
 
-    $this->reporter->report($exception, ['user_id' => 4]); // Reported with stats
+    $this->reporter->report($exception, ['user_id' => 4]); // Breakthrough emits the window's users
 
     $lastReport = $this->fake->getLastReport();
 
-    expect($lastReport['context']['affected_users'])->toBe([4])
-        ->and($lastReport['context']['affected_user_count'])->toBe(1);
+    expect($lastReport['context']['affected_users'])->toBe([1, 2, 3, 4])
+        ->and($lastReport['context']['affected_user_count'])->toBe(4);
 });
 
 test('does not duplicate user IDs in affected users list', function () {
     $exception = new RuntimeException('Test error');
 
+    $this->reporter->report($exception);
     $this->reporter->report($exception, ['user_id' => 1]);
     $this->reporter->report($exception, ['user_id' => 1]); // Same user
     $this->reporter->report($exception, ['user_id' => 1]); // Same user
@@ -77,23 +80,28 @@ test('does not duplicate user IDs in affected users list', function () {
 
     $lastReport = $this->fake->getLastReport();
 
-    expect($lastReport['context']['affected_user_count'])->toBe(0);
+    expect($lastReport['context']['affected_users'])->toBe([1])
+        ->and($lastReport['context']['affected_user_count'])->toBe(1);
 });
 
-test('increments occurrence counter', function () {
+test('counts occurrences per suppression window, resetting after each report', function () {
     $exception = new RuntimeException('Test error');
 
-    $this->reporter->report($exception); // 1
-    $this->reporter->report($exception); // 2
-    $this->reporter->report($exception); // 3
+    // Window 1: the first occurrence is reported immediately; the next two are throttled.
+    $this->reporter->report($exception); // reported  (occurrence 1 of window 1)
+    $this->reporter->report($exception); // throttled (occurrence 1 of window 2)
+    $this->reporter->report($exception); // throttled (occurrence 2 of window 2)
 
-    Carbon::setTestNow('2025-12-05 11:01:00');
+    Carbon::setTestNow('2025-12-05 11:01:00'); // cooldown expires
 
-    $this->reporter->report($exception); // 4
+    // Window 2: the next occurrence breaks through and reports the window's running total.
+    $this->reporter->report($exception); // reported  (occurrence 3 of window 2)
 
-    $lastReport = $this->fake->getLastReport();
+    [$firstReport, $secondReport] = $this->fake->reports;
 
-    expect($lastReport['context']['occurrences'])->toBe(4);
+    // Counters are scoped to a suppression window and reset once a report breaks through.
+    expect($firstReport['context']['occurrences'])->toBe(1)
+        ->and($secondReport['context']['occurrences'])->toBe(3);
 });
 
 test('increments throttled counter', function () {
@@ -133,17 +141,17 @@ test('adds correct context to reported errors', function () {
 test('clears user tracking after reporting', function () {
     $exception = new RuntimeException('Test error');
 
-    $this->reporter->report($exception, ['user_id' => 1]);
-    $this->reporter->report($exception, ['user_id' => 2]);
+    $this->reporter->report($exception, ['user_id' => 1]); // Reported, then user list is cleared
+    $this->reporter->report($exception, ['user_id' => 2]); // Throttled (new window)
 
     Carbon::setTestNow('2025-12-05 11:01:00');
 
-    $this->reporter->report($exception, ['user_id' => 3]);
+    $this->reporter->report($exception, ['user_id' => 3]); // Breakthrough
 
     $lastReport = $this->fake->getLastReport();
 
-    // Should only have user 3, previous users cleared
-    expect($lastReport['context']['affected_users'])->toBe([3]);
+    // User 1 was cleared after its report; the next window tracks users 2 and 3.
+    expect($lastReport['context']['affected_users'])->toBe([2, 3]);
 });
 
 test('handles custom error keys', function () {

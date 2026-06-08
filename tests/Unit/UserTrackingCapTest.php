@@ -19,14 +19,16 @@ test('tracks users up to max limit', function () {
     $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 10);
     $exception = new RuntimeException('Test');
 
-    // Add 10 users - should all be tracked
+    // Open the suppression window with a user-less occurrence, then 10 distinct
+    // users hit the error while it is throttled.
+    $reporter->report($exception);
     for ($i = 1; $i <= 10; $i++) {
         $reporter->report($exception, ['user_id' => $i]);
     }
 
-    Carbon::setTestNow('2025-12-05 11:01:00');
+    Carbon::setTestNow('2025-12-05 11:01:00'); // cooldown expires
 
-    $reporter->report($exception);
+    $reporter->report($exception); // breakthrough emits the window's affected users
 
     $lastReport = $this->fake->getLastReport();
 
@@ -38,7 +40,8 @@ test('stops tracking after reaching max limit', function () {
     $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 10);
     $exception = new RuntimeException('Test');
 
-    // Add 15 users - only first 10 should be tracked
+    // 15 users hit while throttled - only the first 10 should be tracked.
+    $reporter->report($exception);
     for ($i = 1; $i <= 15; $i++) {
         $reporter->report($exception, ['user_id' => $i]);
     }
@@ -74,6 +77,7 @@ test('user_tracking_capped is true when at max limit', function () {
     $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 5);
     $exception = new RuntimeException('Test');
 
+    $reporter->report($exception);
     for ($i = 1; $i <= 5; $i++) {
         $reporter->report($exception, ['user_id' => $i]);
     }
@@ -109,7 +113,8 @@ test('does not track duplicate users against the cap', function () {
     $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 5);
     $exception = new RuntimeException('Test');
 
-    // Add users 1, 2, 3, 1, 2, 3, 1, 2, 3
+    // Users 1, 2, 3 hit repeatedly while throttled.
+    $reporter->report($exception);
     for ($i = 0; $i < 9; $i++) {
         $reporter->report($exception, ['user_id' => ($i % 3) + 1]);
     }
@@ -130,7 +135,8 @@ test('respects default max of 1000 users', function () {
     $reporter = new RateLimitedErrorReporter($this->fake, 60, false); // Default 1000
     $exception = new RuntimeException('Test');
 
-    // Add 1000 users
+    // 1000 users hit while throttled
+    $reporter->report($exception);
     for ($i = 1; $i <= 1000; $i++) {
         $reporter->report($exception, ['user_id' => $i]);
     }
@@ -152,23 +158,27 @@ test('max limit can be configured per instance', function () {
     $exception1 = new RuntimeException('Test 1');
     $exception2 = new RuntimeException('Test 2');
 
-    // Reporter 1: add 10 users (cap at 5)
+    // Open both windows (reports[0] and reports[1]).
+    $reporter1->report($exception1);
+    $reporter2->report($exception2);
+
+    // Reporter 1: 10 users hit while throttled (cap at 5)
     for ($i = 1; $i <= 10; $i++) {
         $reporter1->report($exception1, ['user_id' => $i]);
     }
 
-    // Reporter 2: add 10 users (cap at 10)
+    // Reporter 2: 10 users hit while throttled (cap at 10)
     for ($i = 1; $i <= 10; $i++) {
         $reporter2->report($exception2, ['user_id' => $i]);
     }
 
     Carbon::setTestNow('2025-12-05 11:01:00');
 
-    $reporter1->report($exception1);
-    $reporter2->report($exception2);
+    $reporter1->report($exception1); // reports[2]
+    $reporter2->report($exception2); // reports[3]
 
-    expect($this->fake->reports[0]['context']['affected_user_count'])->toBe(5)
-        ->and($this->fake->reports[1]['context']['affected_user_count'])->toBe(10);
+    expect($this->fake->reports[2]['context']['affected_user_count'])->toBe(5)
+        ->and($this->fake->reports[3]['context']['affected_user_count'])->toBe(10);
 });
 
 test('cap resets after cooldown period', function () {
@@ -219,25 +229,29 @@ test('handles mixed errors with different user caps independently', function () 
     $exception1 = new RuntimeException('Error A');
     $exception2 = new RuntimeException('Error B');
 
-    // Error A: add 5 users (cap at 3)
+    // Open both windows (reports[0] and reports[1]).
+    $reporter->report($exception1);
+    $reporter->report($exception2);
+
+    // Error A: 5 users hit while throttled (cap at 3)
     for ($i = 1; $i <= 5; $i++) {
         $reporter->report($exception1, ['user_id' => $i]);
     }
 
-    // Error B: add 2 users
+    // Error B: 2 users hit while throttled
     $reporter->report($exception2, ['user_id' => 10]);
     $reporter->report($exception2, ['user_id' => 20]);
 
     Carbon::setTestNow('2025-12-05 11:01:00');
 
-    $reporter->report($exception1);
-    $reporter->report($exception2);
+    $reporter->report($exception1); // reports[2]
+    $reporter->report($exception2); // reports[3]
 
     // Error A should be capped
-    expect($this->fake->reports[0]['context']['affected_user_count'])->toBe(3)
-        ->and($this->fake->reports[0]['context']['user_tracking_capped'])->toBe(true);
+    expect($this->fake->reports[2]['context']['affected_user_count'])->toBe(3)
+        ->and($this->fake->reports[2]['context']['user_tracking_capped'])->toBe(true);
 
     // Error B should not be capped
-    expect($this->fake->reports[1]['context']['affected_user_count'])->toBe(2)
-        ->and($this->fake->reports[1]['context']['user_tracking_capped'])->toBe(false);
+    expect($this->fake->reports[3]['context']['affected_user_count'])->toBe(2)
+        ->and($this->fake->reports[3]['context']['user_tracking_capped'])->toBe(false);
 });
