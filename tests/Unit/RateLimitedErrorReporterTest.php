@@ -4,10 +4,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Nikolaynesov\LaravelSerene\Services\RateLimitedErrorReporter;
 use Nikolaynesov\LaravelSerene\Tests\Helpers\FakeErrorReporter;
+use Nikolaynesov\LaravelSerene\Tests\Helpers\ReporterFactory;
 
 beforeEach(function () {
     $this->fake = new FakeErrorReporter();
-    $this->reporter = new RateLimitedErrorReporter($this->fake, 60, false, 1000);
+    $this->reporter = ReporterFactory::create($this->fake, 60, false, 1000);
     Carbon::setTestNow('2025-12-05 10:00:00');
     Cache::flush();
 });
@@ -77,7 +78,9 @@ test('does not duplicate user IDs in affected users list', function () {
 
     $lastReport = $this->fake->getLastReport();
 
-    expect($lastReport['context']['affected_user_count'])->toBe(0);
+    // The same user appeared three times but is tracked once, not duplicated.
+    expect($lastReport['context']['affected_users'])->toBe([1])
+        ->and($lastReport['context']['affected_user_count'])->toBe(1);
 });
 
 test('increments occurrence counter', function () {
@@ -190,7 +193,7 @@ test('handles different exceptions separately', function () {
 });
 
 test('respects custom cooldown period', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 30, false, 1000); // 30 minutes
+    $reporter = ReporterFactory::create($this->fake, 30, false, 1000); // 30 minutes
     $exception = new RuntimeException('Test error');
 
     $reporter->report($exception);
@@ -229,20 +232,18 @@ test('key is included in context', function () {
 test('stats reset after cooldown', function () {
     $exception = new RuntimeException('Test error');
 
-    $this->reporter->report($exception); // occurrences=1, throttled=0
-    $this->reporter->report($exception); // occurrences=2, throttled=1
+    $this->reporter->report($exception); // occurrences=1, throttled=0, reported
+    $this->reporter->report($exception); // occurrences=2, throttled=1 (throttled)
 
-    Carbon::setTestNow('2025-12-05 11:01:00');
-
-    $this->reporter->report($exception); // occurrences=3, throttled=2, then reported
-    $this->reporter->report($exception); // New cycle: occurrences=1, throttled=0
-
-    Carbon::setTestNow('2025-12-05 12:02:00');
+    // Jump past the stats TTL (first_seen + cooldown(60m) + 10m buffer) with no
+    // activity in between, so the cached stats expire and the next occurrence
+    // starts a brand-new cycle rather than accumulating onto the old counts.
+    Carbon::setTestNow('2025-12-05 11:11:00');
 
     $this->reporter->report($exception);
 
     $lastReport = $this->fake->getLastReport();
 
-    expect($lastReport['context']['occurrences'])->toBe(2)
-        ->and($lastReport['context']['throttled'])->toBe(1);
+    expect($lastReport['context']['occurrences'])->toBe(1)
+        ->and($lastReport['context']['throttled'])->toBe(0);
 });

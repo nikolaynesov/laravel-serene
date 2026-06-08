@@ -4,6 +4,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Nikolaynesov\LaravelSerene\Services\RateLimitedErrorReporter;
 use Nikolaynesov\LaravelSerene\Tests\Helpers\FakeErrorReporter;
+use Nikolaynesov\LaravelSerene\Tests\Helpers\ReporterFactory;
 
 beforeEach(function () {
     Carbon::setTestNow('2025-12-05 10:00:00');
@@ -16,7 +17,7 @@ afterEach(function () {
 });
 
 test('tracks users up to max limit', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 10);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 10);
     $exception = new RuntimeException('Test');
 
     // Add 10 users - should all be tracked
@@ -35,7 +36,7 @@ test('tracks users up to max limit', function () {
 });
 
 test('stops tracking after reaching max limit', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 10);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 10);
     $exception = new RuntimeException('Test');
 
     // Add 15 users - only first 10 should be tracked
@@ -55,7 +56,7 @@ test('stops tracking after reaching max limit', function () {
 });
 
 test('user_tracking_capped is false when under limit', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 100);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 100);
     $exception = new RuntimeException('Test');
 
     $reporter->report($exception, ['user_id' => 1]);
@@ -71,7 +72,7 @@ test('user_tracking_capped is false when under limit', function () {
 });
 
 test('user_tracking_capped is true when at max limit', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 5);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 5);
     $exception = new RuntimeException('Test');
 
     for ($i = 1; $i <= 5; $i++) {
@@ -88,7 +89,7 @@ test('user_tracking_capped is true when at max limit', function () {
 });
 
 test('user_tracking_capped is true when over max limit', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 5);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 5);
     $exception = new RuntimeException('Test');
 
     for ($i = 1; $i <= 10; $i++) {
@@ -106,7 +107,7 @@ test('user_tracking_capped is true when over max limit', function () {
 });
 
 test('does not track duplicate users against the cap', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 5);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 5);
     $exception = new RuntimeException('Test');
 
     // Add users 1, 2, 3, 1, 2, 3, 1, 2, 3
@@ -127,7 +128,7 @@ test('does not track duplicate users against the cap', function () {
 });
 
 test('respects default max of 1000 users', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false); // Default 1000
+    $reporter = ReporterFactory::create($this->fake, 60, false); // Default 1000
     $exception = new RuntimeException('Test');
 
     // Add 1000 users
@@ -146,8 +147,8 @@ test('respects default max of 1000 users', function () {
 });
 
 test('max limit can be configured per instance', function () {
-    $reporter1 = new RateLimitedErrorReporter($this->fake, 60, false, 5);
-    $reporter2 = new RateLimitedErrorReporter($this->fake, 60, false, 10);
+    $reporter1 = ReporterFactory::create($this->fake, 60, false, 5);
+    $reporter2 = ReporterFactory::create($this->fake, 60, false, 10);
 
     $exception1 = new RuntimeException('Test 1');
     $exception2 = new RuntimeException('Test 2');
@@ -167,12 +168,14 @@ test('max limit can be configured per instance', function () {
     $reporter1->report($exception1);
     $reporter2->report($exception2);
 
-    expect($this->fake->reports[0]['context']['affected_user_count'])->toBe(5)
-        ->and($this->fake->reports[1]['context']['affected_user_count'])->toBe(10);
+    // reports[0] and reports[1] are the initial reports (1 user each)
+    // reports[2] and reports[3] are the reports after throttle expires (accumulated users)
+    expect($this->fake->reports[2]['context']['affected_user_count'])->toBe(5)
+        ->and($this->fake->reports[3]['context']['affected_user_count'])->toBe(10);
 });
 
 test('cap resets after cooldown period', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 5);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 5);
     $exception = new RuntimeException('Test');
 
     // First cycle: add 5 users
@@ -202,7 +205,7 @@ test('cap resets after cooldown period', function () {
 });
 
 test('tracks no users when user_id not provided', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 10);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 10);
     $exception = new RuntimeException('Test');
 
     $reporter->report($exception);
@@ -215,7 +218,7 @@ test('tracks no users when user_id not provided', function () {
 });
 
 test('handles mixed errors with different user caps independently', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 3);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 3);
     $exception1 = new RuntimeException('Error A');
     $exception2 = new RuntimeException('Error B');
 
@@ -233,11 +236,13 @@ test('handles mixed errors with different user caps independently', function () 
     $reporter->report($exception1);
     $reporter->report($exception2);
 
+    // reports[0] and reports[1] are the initial reports (1 user each)
+    // reports[2] and reports[3] are the reports after throttle expires (accumulated users)
     // Error A should be capped
-    expect($this->fake->reports[0]['context']['affected_user_count'])->toBe(3)
-        ->and($this->fake->reports[0]['context']['user_tracking_capped'])->toBe(true);
+    expect($this->fake->reports[2]['context']['affected_user_count'])->toBe(3)
+        ->and($this->fake->reports[2]['context']['user_tracking_capped'])->toBe(true);
 
     // Error B should not be capped
-    expect($this->fake->reports[1]['context']['affected_user_count'])->toBe(2)
-        ->and($this->fake->reports[1]['context']['user_tracking_capped'])->toBe(false);
+    expect($this->fake->reports[3]['context']['affected_user_count'])->toBe(2)
+        ->and($this->fake->reports[3]['context']['user_tracking_capped'])->toBe(false);
 });

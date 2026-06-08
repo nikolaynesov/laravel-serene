@@ -155,6 +155,12 @@ test('preserves all context fields in metadata', function () {
                 {
                     $this->metadata = $data;
                 }
+
+                public function setUser(array $user): void {}
+
+                public function setSeverity(string $severity): void {}
+
+                public function addMetaData(string $section, array $data): void {}
             };
 
             $callback($report);

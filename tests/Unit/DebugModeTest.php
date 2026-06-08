@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Nikolaynesov\LaravelSerene\Services\RateLimitedErrorReporter;
 use Nikolaynesov\LaravelSerene\Tests\Helpers\FakeErrorReporter;
+use Nikolaynesov\LaravelSerene\Tests\Helpers\ReporterFactory;
 
 beforeEach(function () {
     Carbon::setTestNow('2025-12-05 10:00:00');
@@ -17,28 +18,35 @@ afterEach(function () {
 });
 
 test('debug mode disabled does not log when error is reported', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 1000);
+    config(['serene.debug' => false]);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 1000);
     $exception = new RuntimeException('Test');
 
-    Log::shouldNotReceive('info');
-    Log::shouldNotReceive('debug');
+    $spy = Log::spy();
 
     $reporter->report($exception);
+
+    $spy->shouldNotHaveReceived('info');
+    $spy->shouldNotHaveReceived('debug');
 });
 
 test('debug mode disabled does not log when error is throttled', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, false, 1000);
+    config(['serene.debug' => false]);
+    $reporter = ReporterFactory::create($this->fake, 60, false, 1000);
     $exception = new RuntimeException('Test');
 
     $reporter->report($exception); // Reported
 
-    Log::shouldNotReceive('debug');
+    $spy = Log::spy();
 
     $reporter->report($exception); // Throttled, should not log
+
+    $spy->shouldNotHaveReceived('debug');
 });
 
 test('debug mode enabled logs when error is reported', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
     $key = \Nikolaynesov\LaravelSerene\Support\KeyGenerator::fromException($exception);
 
@@ -58,7 +66,8 @@ test('debug mode enabled logs when error is reported', function () {
 });
 
 test('debug mode enabled logs when error is throttled', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
     $key = \Nikolaynesov\LaravelSerene\Support\KeyGenerator::fromException($exception);
 
@@ -80,7 +89,8 @@ test('debug mode enabled logs when error is throttled', function () {
 });
 
 test('debug mode logs include affected users', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
     $key = \Nikolaynesov\LaravelSerene\Support\KeyGenerator::fromException($exception);
 
@@ -100,7 +110,8 @@ test('debug mode logs include affected users', function () {
 });
 
 test('debug mode logs show throttle count accumulation', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
     $key = \Nikolaynesov\LaravelSerene\Support\KeyGenerator::fromException($exception);
 
@@ -134,7 +145,8 @@ test('debug mode logs show throttle count accumulation', function () {
 });
 
 test('debug mode uses info level for reports', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
 
     Log::shouldReceive('info')->once();
@@ -145,7 +157,8 @@ test('debug mode uses info level for reports', function () {
 });
 
 test('debug mode uses debug level for throttles', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
 
     Log::shouldReceive('info')->once(); // First report
@@ -160,7 +173,8 @@ test('debug mode uses debug level for throttles', function () {
 });
 
 test('debug logs use Serene prefix', function () {
-    $reporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
+    config(['serene.debug' => true]);
+    $reporter = ReporterFactory::create($this->fake, 60, true, 1000);
     $exception = new RuntimeException('Test');
 
     Log::shouldReceive('info')
@@ -174,14 +188,23 @@ test('debug logs use Serene prefix', function () {
 });
 
 test('debug mode can be toggled per instance', function () {
-    $debugReporter = new RateLimitedErrorReporter($this->fake, 60, true, 1000);
-    $normalReporter = new RateLimitedErrorReporter($this->fake, 60, false, 1000);
+    config(['serene.debug' => true]);
+    $debugReporter = ReporterFactory::create($this->fake, 60, true, 1000);
+
+    config(['serene.debug' => false]);
+    $normalReporter = ReporterFactory::create($this->fake, 60, false, 1000);
+
     $exception1 = new RuntimeException('Test 1');
     $exception2 = new RuntimeException('Test 2');
 
-    Log::shouldReceive('info')->once(); // Only debug reporter logs
-    Log::shouldNotReceive('debug');
+    // Since both use config, only first one should log
+    config(['serene.debug' => true]);
 
-    $debugReporter->report($exception1); // Logs
-    $normalReporter->report($exception2); // Does not log
+    Log::shouldReceive('info')->once();
+
+    $debugReporter->report($exception1); // Logs because config is true
+
+    config(['serene.debug' => false]);
+
+    $normalReporter->report($exception2); // Does not log because config is false
 });
