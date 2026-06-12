@@ -52,6 +52,9 @@ SERENE_REPORTER_MAX_TRACKED_USERS=1000
 
 # Maximum unique errors to track simultaneously (default: 1000)
 SERENE_REPORTER_MAX_TRACKED_ERRORS=1000
+
+# Use the resolved group key as Bugsnag's grouping hash (default: true)
+SERENE_REPORTER_SET_GROUPING_HASH=true
 ```
 
 All environment variables are optional. If not set, the defaults shown above will be used.
@@ -191,7 +194,12 @@ Serene::report($exception, [
 
 ### Error Grouping
 
-Serene provides three ways to control how errors are grouped for throttling, from most flexible to automatic:
+Serene provides three ways to control how errors are grouped, from most flexible to automatic. The resolved group key does two things:
+
+1. **Throttling** — occurrences sharing a key collapse into a single cooldown window.
+2. **Bugsnag grouping** — the key is set as Bugsnag's grouping hash, so all occurrences of a group appear as **one Bugsnag error** regardless of stacktrace.
+
+> Bugsnag grouping is controlled by the `set_grouping_hash` config (default `true`). Set it to `false` to keep Bugsnag's default stacktrace-based grouping and have the key affect throttling only. See [Bugsnag Grouping](#bugsnag-grouping) below.
 
 #### 1. Groupable Exceptions (Recommended)
 
@@ -269,6 +277,32 @@ throw new RuntimeException('Database connection failed');
 ```
 
 **Hierarchy:** Explicit key > GroupableException > Auto-generated
+
+### Bugsnag Grouping
+
+When the `BugsnagReporter` is active, the resolved group key is set as Bugsnag's
+[grouping hash](https://docs.bugsnag.com/product/error-grouping/#grouping-hash). This means
+`getErrorGroup()` and explicit keys control how errors group **in the Bugsnag dashboard**, not
+just Serene's throttling — all occurrences of a group collapse into a single Bugsnag error,
+even when their stacktraces differ.
+
+This is enabled by default. To opt out and keep Bugsnag's default stacktrace-based grouping:
+
+```php
+// config/serene.php
+'set_grouping_hash' => false,
+```
+
+```bash
+# or via .env
+SERENE_REPORTER_SET_GROUPING_HASH=false
+```
+
+> **Upgrading from < 0.3.0:** Earlier versions never set the grouping hash, so errors grouped by
+> stacktrace. After upgrading, errors reported through Serene will **re-group** by their key:
+> existing stacktrace-based Bugsnag errors stop receiving events and new key-based errors appear.
+> You may want to mark the superseded Bugsnag errors as fixed. Set `set_grouping_hash => false`
+> to preserve the old behavior.
 
 ## How It Works
 
