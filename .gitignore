@@ -30,3 +30,8 @@ Homestead.json
 auth.json
 .junie
 .junie/guidelines.md
+
+# IDE
+/.idea/
+*.iml
+.vscode/

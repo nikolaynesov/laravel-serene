@@ -121,6 +121,8 @@ test('metadata is nested under error_throttler key', function () {
                 {
                     $this->metadata = $data;
                 }
+
+                public function setGroupingHash(string $hash): void {}
             };
 
             $callback($report);
@@ -165,6 +167,8 @@ test('preserves all context fields in metadata', function () {
                 {
                     $this->metadata = $data;
                 }
+
+                public function setGroupingHash(string $hash): void {}
             };
 
             $callback($report);

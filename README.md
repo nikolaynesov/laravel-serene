@@ -1,6 +1,7 @@
 # Laravel Serene
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/nikolaynesov/laravel-serene.svg?style=flat-square)](https://packagist.org/packages/nikolaynesov/laravel-serene)
+[![Tests](https://img.shields.io/github/actions/workflow/status/nikolaynesov/laravel-serene/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/nikolaynesov/laravel-serene/actions/workflows/tests.yml)
 [![Total Downloads](https://img.shields.io/packagist/dt/nikolaynesov/laravel-serene.svg?style=flat-square)](https://packagist.org/packages/nikolaynesov/laravel-serene)
 
 Graceful, noise-free, and rate-limited exception reporting for Laravel. Stop spamming your error tracking service with duplicate errors and get meaningful insights into how many times errors occurred and how many users were affected.
@@ -52,6 +53,9 @@ SERENE_REPORTER_MAX_TRACKED_USERS=1000
 
 # Maximum unique errors to track simultaneously (default: 1000)
 SERENE_REPORTER_MAX_TRACKED_ERRORS=1000
+
+# Use the resolved group key to drive the tracker's native grouping (default: true)
+SERENE_REPORTER_GROUP_BY_KEY=true
 ```
 
 All environment variables are optional. If not set, the defaults shown above will be used.
@@ -191,7 +195,12 @@ Serene::report($exception, [
 
 ### Error Grouping
 
-Serene provides three ways to control how errors are grouped for throttling, from most flexible to automatic:
+Serene provides three ways to control how errors are grouped, from most flexible to automatic. The resolved group key does two things:
+
+1. **Throttling** — occurrences sharing a key collapse into a single cooldown window.
+2. **Tracker grouping** — the key drives the error tracker's native grouping, so all occurrences of a group appear as **one error** regardless of stacktrace.
+
+> Tracker grouping is controlled by the `group_by_key` config (default `true`). Set it to `false` to keep the tracker's default stacktrace-based grouping and have the key affect throttling only. See [Tracker Grouping](#tracker-grouping) below.
 
 #### 1. Groupable Exceptions (Recommended)
 
@@ -269,6 +278,37 @@ throw new RuntimeException('Database connection failed');
 ```
 
 **Hierarchy:** Explicit key > GroupableException > Auto-generated
+
+### Tracker Grouping
+
+By default the resolved group key drives the error tracker's **native grouping**, so
+`getErrorGroup()` and explicit keys control how errors group **in your tracker's dashboard**, not
+just Serene's throttling — all occurrences of a group collapse into a single error, even when
+their stacktraces differ.
+
+Each reporter applies this in its own way: the bundled `BugsnagReporter` sets Bugsnag's
+[grouping hash](https://docs.bugsnag.com/product/error-grouping/#grouping-hash); a custom reporter
+for another tracker would map the key to that tracker's equivalent (e.g. Sentry's fingerprint),
+and a reporter without native grouping simply ignores the flag. The resolved key is always
+available to every reporter as `$context['key']`.
+
+This is enabled by default. To opt out and keep the tracker's default stacktrace-based grouping:
+
+```php
+// config/serene.php
+'group_by_key' => false,
+```
+
+```bash
+# or via .env
+SERENE_REPORTER_GROUP_BY_KEY=false
+```
+
+> **Upgrading from < 0.3.0:** Earlier versions never applied the key to tracker grouping, so
+> errors grouped by stacktrace. After upgrading, errors reported through Serene will **re-group**
+> by their key: existing stacktrace-based errors stop receiving events and new key-based errors
+> appear. You may want to mark the superseded errors as fixed. Set `group_by_key => false` to
+> preserve the old behavior.
 
 ## How It Works
 
