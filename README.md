@@ -1,6 +1,7 @@
 # Laravel Serene
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/nikolaynesov/laravel-serene.svg?style=flat-square)](https://packagist.org/packages/nikolaynesov/laravel-serene)
+[![Tests](https://img.shields.io/github/actions/workflow/status/nikolaynesov/laravel-serene/tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/nikolaynesov/laravel-serene/actions/workflows/tests.yml)
 [![Total Downloads](https://img.shields.io/packagist/dt/nikolaynesov/laravel-serene.svg?style=flat-square)](https://packagist.org/packages/nikolaynesov/laravel-serene)
 
 Graceful, noise-free, and rate-limited exception reporting for Laravel. Stop spamming your error tracking service with duplicate errors and get meaningful insights into how many times errors occurred and how many users were affected.
