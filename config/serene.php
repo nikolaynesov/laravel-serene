@@ -40,20 +40,22 @@ return [
     'max_tracked_errors' => (int) env('SERENE_REPORTER_MAX_TRACKED_ERRORS', 1000),
 
     /*
-     * Use the resolved group key as Bugsnag's grouping hash.
+     * Use the resolved group key to drive the reporter's native grouping.
      *
      * When true (default), an explicit key passed to Serene::report() or an
-     * exception's getErrorGroup() value drives how Bugsnag groups the error,
-     * so all occurrences of a group collapse into a single Bugsnag error
-     * regardless of stacktrace. When false, Bugsnag falls back to its default
-     * stacktrace-based grouping and the key only affects Serene's throttling.
+     * exception's getErrorGroup() value controls how the error tracker groups
+     * the error, so all occurrences of a group collapse into a single error
+     * regardless of stacktrace. Each reporter applies this in its own way
+     * (e.g. BugsnagReporter sets the Bugsnag grouping hash; a reporter without
+     * native grouping simply ignores it). When false, the tracker falls back
+     * to its default grouping and the key only affects Serene's throttling.
      *
      * Note: enabling this re-groups errors that were previously reported
-     * through Serene. After upgrading you may want to mark superseded Bugsnag
-     * errors as fixed.
+     * through Serene. After upgrading you may want to mark the superseded
+     * errors in your tracker as fixed.
      *
-     * Environment: SERENE_REPORTER_SET_GROUPING_HASH
+     * Environment: SERENE_REPORTER_GROUP_BY_KEY
      * Default: true
      */
-    'set_grouping_hash' => (bool) env('SERENE_REPORTER_SET_GROUPING_HASH', true),
+    'group_by_key' => (bool) env('SERENE_REPORTER_GROUP_BY_KEY', true),
 ];

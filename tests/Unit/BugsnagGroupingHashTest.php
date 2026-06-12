@@ -89,7 +89,7 @@ test('R4.3 auto-generated key drives the grouping hash', function () {
 });
 
 test('R4.4 config off: grouping hash is never set', function () {
-    config()->set('serene.set_grouping_hash', false);
+    config()->set('serene.group_by_key', false);
 
     $spy = makeGroupingHashSpy();
 

@@ -53,8 +53,8 @@ SERENE_REPORTER_MAX_TRACKED_USERS=1000
 # Maximum unique errors to track simultaneously (default: 1000)
 SERENE_REPORTER_MAX_TRACKED_ERRORS=1000
 
-# Use the resolved group key as Bugsnag's grouping hash (default: true)
-SERENE_REPORTER_SET_GROUPING_HASH=true
+# Use the resolved group key to drive the tracker's native grouping (default: true)
+SERENE_REPORTER_GROUP_BY_KEY=true
 ```
 
 All environment variables are optional. If not set, the defaults shown above will be used.
@@ -197,9 +197,9 @@ Serene::report($exception, [
 Serene provides three ways to control how errors are grouped, from most flexible to automatic. The resolved group key does two things:
 
 1. **Throttling** — occurrences sharing a key collapse into a single cooldown window.
-2. **Bugsnag grouping** — the key is set as Bugsnag's grouping hash, so all occurrences of a group appear as **one Bugsnag error** regardless of stacktrace.
+2. **Tracker grouping** — the key drives the error tracker's native grouping, so all occurrences of a group appear as **one error** regardless of stacktrace.
 
-> Bugsnag grouping is controlled by the `set_grouping_hash` config (default `true`). Set it to `false` to keep Bugsnag's default stacktrace-based grouping and have the key affect throttling only. See [Bugsnag Grouping](#bugsnag-grouping) below.
+> Tracker grouping is controlled by the `group_by_key` config (default `true`). Set it to `false` to keep the tracker's default stacktrace-based grouping and have the key affect throttling only. See [Tracker Grouping](#tracker-grouping) below.
 
 #### 1. Groupable Exceptions (Recommended)
 
@@ -278,31 +278,36 @@ throw new RuntimeException('Database connection failed');
 
 **Hierarchy:** Explicit key > GroupableException > Auto-generated
 
-### Bugsnag Grouping
+### Tracker Grouping
 
-When the `BugsnagReporter` is active, the resolved group key is set as Bugsnag's
-[grouping hash](https://docs.bugsnag.com/product/error-grouping/#grouping-hash). This means
-`getErrorGroup()` and explicit keys control how errors group **in the Bugsnag dashboard**, not
-just Serene's throttling — all occurrences of a group collapse into a single Bugsnag error,
-even when their stacktraces differ.
+By default the resolved group key drives the error tracker's **native grouping**, so
+`getErrorGroup()` and explicit keys control how errors group **in your tracker's dashboard**, not
+just Serene's throttling — all occurrences of a group collapse into a single error, even when
+their stacktraces differ.
 
-This is enabled by default. To opt out and keep Bugsnag's default stacktrace-based grouping:
+Each reporter applies this in its own way: the bundled `BugsnagReporter` sets Bugsnag's
+[grouping hash](https://docs.bugsnag.com/product/error-grouping/#grouping-hash); a custom reporter
+for another tracker would map the key to that tracker's equivalent (e.g. Sentry's fingerprint),
+and a reporter without native grouping simply ignores the flag. The resolved key is always
+available to every reporter as `$context['key']`.
+
+This is enabled by default. To opt out and keep the tracker's default stacktrace-based grouping:
 
 ```php
 // config/serene.php
-'set_grouping_hash' => false,
+'group_by_key' => false,
 ```
 
 ```bash
 # or via .env
-SERENE_REPORTER_SET_GROUPING_HASH=false
+SERENE_REPORTER_GROUP_BY_KEY=false
 ```
 
-> **Upgrading from < 0.3.0:** Earlier versions never set the grouping hash, so errors grouped by
-> stacktrace. After upgrading, errors reported through Serene will **re-group** by their key:
-> existing stacktrace-based Bugsnag errors stop receiving events and new key-based errors appear.
-> You may want to mark the superseded Bugsnag errors as fixed. Set `set_grouping_hash => false`
-> to preserve the old behavior.
+> **Upgrading from < 0.3.0:** Earlier versions never applied the key to tracker grouping, so
+> errors grouped by stacktrace. After upgrading, errors reported through Serene will **re-group**
+> by their key: existing stacktrace-based errors stop receiving events and new key-based errors
+> appear. You may want to mark the superseded errors as fixed. Set `group_by_key => false` to
+> preserve the old behavior.
 
 ## How It Works
 

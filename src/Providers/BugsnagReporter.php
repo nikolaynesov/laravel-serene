@@ -10,26 +10,27 @@ use Throwable;
 class BugsnagReporter implements ErrorReporter
 {
     /**
-     * Whether the resolved group key should drive Bugsnag's grouping hash.
+     * Whether the resolved group key should drive the reporter's native
+     * grouping. For Bugsnag this maps to the report's grouping hash.
      */
-    protected bool $setGroupingHash;
+    protected bool $groupByKey;
 
-    public function __construct(?bool $setGroupingHash = null)
+    public function __construct(?bool $groupByKey = null)
     {
-        $this->setGroupingHash = $setGroupingHash
-            ?? (bool) config('serene.set_grouping_hash', true);
+        $this->groupByKey = $groupByKey
+            ?? (bool) config('serene.group_by_key', true);
     }
 
     public function report(Throwable $exception, array $context = []): void
     {
-        $setGroupingHash = $this->setGroupingHash;
+        $groupByKey = $this->groupByKey;
 
-        Bugsnag::notifyException($exception, function ($report) use ($context, $setGroupingHash) {
+        Bugsnag::notifyException($exception, function ($report) use ($context, $groupByKey) {
             // Drive Bugsnag grouping with the resolved group key so that
             // getErrorGroup() / explicit keys collapse into one error.
             // RateLimitedErrorReporter always sets $context['key'] before
             // reporting; the empty() guard covers direct callers that bypass it.
-            if ($setGroupingHash && !empty($context['key'])) {
+            if ($groupByKey && !empty($context['key'])) {
                 $report->setGroupingHash((string) $context['key']);
             }
 
